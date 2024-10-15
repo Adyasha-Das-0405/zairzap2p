@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Call Application</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Video Call Application</h1>
+        <div>
+            <h3>Your ID: <span id="userId"></span></h3>
+            <button id="toggleVideo">Toggle Video</button>
+            <button id="toggleAudio">Toggle Audio</button>
+        </div>
+        <div>
+            <h3>Online Users (click to connect)</h3>
+            <ul id="userList"></ul>
+        </div>
+        <div id="videoContainer">
+            <video id="localVideo" autoplay muted></video>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+

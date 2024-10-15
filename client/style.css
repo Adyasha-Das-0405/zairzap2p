@@ -1,0 +1,47 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    text-align: center;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+video {
+    width: 100%;
+    max-width: 400px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+#videoContainer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#userList {
+    list-style-type: none;
+    padding: 0;
+}
+
+#userList li {
+    cursor: pointer;
+    padding: 8px;
+    border: 1px solid #ddd;
+    margin: 5px;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+#userList li:hover {
+    background-color: #f1f1f1;
+}
+
