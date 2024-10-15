@@ -26,7 +26,7 @@ To run the application locally, follow these steps:
     node server.js
     ```
 
-2. Access the application in your browser at `http://localhost:3000`.
+2. Access the application in your browser at `http://localhost:8000`.
 
 ## Project Structure
 
