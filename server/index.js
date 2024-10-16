@@ -1,59 +1,79 @@
-const express = require("express");
-const http = require("http");
-const socketIO = require("socket.io");
-const path = require("path");
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
 
-const users = new Map();
+const port = 8000;
 
-io.on("connection", (socket) => {
-  console.log(`Client connected: ${socket.id}`);
-  users.set(socket.id, socket.id);
 
-  // Notify other users about the new connection
-  socket.broadcast.emit("user:joined", socket.id);
-  io.emit("updateUserList", Array.from(users.values())); // Emit the updated user list
+app.use(express.static(path.resolve(__dirname, '../client')));
 
-  // Handle outgoing call
-  socket.on("outgoing:call", ({ fromOffer, to }) => {
-    console.log(`Call from ${socket.id} to ${to}`);
-    socket.to(to).emit("incoming:call", { from: socket.id, offer: fromOffer });
-  });
+let hostId = null;
 
-  // Handle answer to call
-  socket.on("answer:call", ({ ans, to }) => {
-    console.log(`Call answered by ${socket.id} to ${to}`);
-    socket.to(to).emit("inanswer:call", { from: socket.id, answer: ans });
-  });
+io.on('connection', (socket) => {
+    console.log('New user connected:', socket.id);
 
-  // Handle ICE candidates
-  socket.on('ice-candidate', ({ candidate, to }) => {
-    socket.to(to).emit('ice-candidate', { candidate });
-  });
+    
+    socket.on('roleSelected', ({ role, username }) => {
+        if (role === 'host') {
+            hostId = socket.id;
+            console.log(`Host selected: ${username} (${hostId})`);
+        } else {
+            console.log(`Participant selected: ${username}`);
+            if (hostId) {
+                
+                socket.to(hostId).emit('newParticipant', socket.id);
+            }
+        }
+    });
 
-  // Handle disconnect
-  socket.on("disconnect", () => {
-    console.log(`Client disconnected: ${socket.id}`);
-    socket.broadcast.emit("user:left", socket.id);
-    users.delete(socket.id);
-    io.emit("updateUserList", Array.from(users.values())); // Emit the updated user list
-  });
+    
+    socket.on('startStream', ({ username }) => {
+        console.log(`Host (${username}) started streaming.`);
+    });
+
+    
+    socket.on('offer', ({ to, offer }) => {
+        io.to(to).emit('offer', { from: socket.id, offer });
+    });
+
+    
+    socket.on('answer', ({ to, answer }) => {
+        io.to(to).emit('answer', { from: socket.id, answer });
+    });
+
+    
+    socket.on('iceCandidate', ({ to, candidate }) => {
+        io.to(to).emit('iceCandidate', { from: socket.id, candidate });
+    });
+
+    
+    socket.on('chatMessage', ({ message, username, isHost }) => {
+        const chatMessage = {
+            message,
+            username,
+            isHost,
+        };
+        io.emit('chatMessage', chatMessage); 
+    });
+
+    socket.on('disconnect', () => {
+        if (socket.id === hostId) {
+            console.log('Host disconnected. Ending stream.');
+            hostId = null;
+            io.emit('hostDisconnected');
+        } else {
+            console.log(`Participant disconnected: ${socket.id}`);
+        }
+    });
 });
 
-// Serve static files from the client1 directory
-app.use(express.static(path.resolve(__dirname, "../client")));
 
-// Get list of connected users
-app.get("/", (req, res) => {
-  return res.sendFile(path.resolve(__dirname, "../client/index.html"));
-});
-
-// Start the server
-const PORT = 8000;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+server.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
 });
 
