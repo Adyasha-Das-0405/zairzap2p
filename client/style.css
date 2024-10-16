@@ -4,36 +4,43 @@ body {
     text-align: center;
 }
 
-.container {
-    max-width: 800px;
-    margin: 0 auto;
+#roleSelection {
+    margin: 50px auto;
     padding: 20px;
-    background: white;
+    background-color: white;
+    width: 300px;
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-video {
+#meeting {
+    margin: 20px auto;
+    max-width: 800px;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+#videoContainer video {
     width: 100%;
     max-width: 400px;
     border: 2px solid #ccc;
     border-radius: 8px;
-    margin: 10px 0;
 }
 
-#videoContainer {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+#chat {
+    margin-top: 20px;
 }
 
-#userList {
+#messages {
     list-style-type: none;
     padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
-#userList li {
-    cursor: pointer;
+#messages li {
     padding: 8px;
     border: 1px solid #ddd;
     margin: 5px;
@@ -41,7 +48,7 @@ video {
     background-color: #f9f9f9;
 }
 
-#userList li:hover {
-    background-color: #f1f1f1;
+#chatForm {
+    margin-top: 10px;
 }
 
