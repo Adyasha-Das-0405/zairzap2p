@@ -1,146 +1,128 @@
 const socket = io();
-const localVideo = document.getElementById('localVideo');
-const userList = document.getElementById('userList');
-const userIdDisplay = document.getElementById('userId');
-const toggleVideoBtn = document.getElementById('toggleVideo');
-const toggleAudioBtn = document.getElementById('toggleAudio');
-const peers = {};
 let localStream;
-
-// Get user media with lower resolution and frame rate
-const constraints = {
-    video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        frameRate: { ideal: 15 }
-    },
-    audio: true
+let peerConnections = {};
+const config = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
+let role;
+let username;
 
-navigator.mediaDevices.getUserMedia(constraints)
-    .then(stream => {
-        localStream = stream;
-        localVideo.srcObject = localStream;
-        socket.emit('newUser'); // Notify server of new user
-    })
-    .catch(err => console.error('Failed to get local stream', err));
+// Function to select role and start stream
+function selectRole(selectedRole) {
+    username = document.getElementById('username').value.trim();
+    if (!username) {
+        alert('Please enter your name.');
+        return;
+    }
 
-// Show the user ID
-socket.on('yourID', id => {
-    userIdDisplay.textContent = id;
-});
+    role = selectedRole;
+    socket.emit('roleSelected', { role, username });
+    document.getElementById('roleSelection').style.display = 'none';
+    document.getElementById('meeting').style.display = 'block';
 
-// Update the list of online users
-socket.on('updateUserList', users => {
-    userList.innerHTML = '';
-    users.forEach(user => {
-        if (user !== socket.id) {
-            const li = document.createElement('li');
-            li.textContent = user;
-            li.onclick = () => callUser(user);
-            userList.appendChild(li);
-        }
-    });
-});
+    if (role === 'host') {
+        document.getElementById('hostControls').style.display = 'block';
+        initializeHostStream();
+    } else {
+        document.getElementById('hostControls').style.display = 'none';
+    }
+}
 
-// Handle incoming call
-socket.on('incoming:call', async ({ from, offer }) => {
-    const peerConnection = createPeerConnection(from);
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer:call', { ans: answer, to: from });
-});
+// Initialize stream for host
+async function initializeHostStream() {
+    try {
+        console.log('Initializing host stream...');
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('hostVideo').srcObject = localStream;
+        socket.emit('startStream', { username });
 
-// Answer a call
-socket.on('inanswer:call', ({ from, answer }) => {
-    const peerConnection = createPeerConnection(from);
-    peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-});
+        socket.on('newParticipant', (participantId) => {
+            console.log(`New participant: ${participantId}`);
+            const peerConnection = new RTCPeerConnection(config);
+            peerConnections[participantId] = peerConnection;
 
-// Create peer connection with ICE servers
-function createPeerConnection(userId) {
-    const iceServers = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:your-turn-server:3478', username: 'user', credential: 'pass' }
-        ]
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('iceCandidate', {
+                        to: participantId,
+                        candidate: event.candidate
+                    });
+                }
+            };
+
+            peerConnection.createOffer()
+                .then(offer => peerConnection.setLocalDescription(offer))
+                .then(() => {
+                    console.log('Sending offer to participant...');
+                    socket.emit('offer', {
+                        to: participantId,
+                        offer: peerConnection.localDescription
+                    });
+                });
+        });
+    } catch (error) {
+        console.error('Error accessing media devices:', error);
+    }
+}
+
+// Handle offer from host (for participants)
+socket.on('offer', async ({ from, offer }) => {
+    console.log('Received offer from host...');
+    const peerConnection = new RTCPeerConnection(config);
+    peerConnections[from] = peerConnection;
+
+    peerConnection.ontrack = event => {
+        console.log('Receiving track from host...');
+        document.getElementById('hostVideo').srcObject = event.streams[0];
     };
-
-    const peerConnection = new RTCPeerConnection(iceServers);
-    peers[userId] = peerConnection;
-
-    // Add local tracks to the peer connection
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            socket.emit('ice-candidate', { candidate: event.candidate, to: userId });
+            socket.emit('iceCandidate', {
+                to: from,
+                candidate: event.candidate
+            });
         }
     };
 
-    peerConnection.ontrack = event => {
-        const remoteVideo = document.createElement('video');
-        remoteVideo.srcObject = event.streams[0];
-        remoteVideo.autoplay = true;
-        remoteVideo.controls = true;
-        remoteVideo.id = `video-${userId}`; // Unique ID for the video element
-        document.getElementById("videoContainer").appendChild(remoteVideo); // Display remote video
-    };
-
-    return peerConnection;
-}
-
-// Handle user left event
-socket.on('user:left', userId => {
-    console.log(`User left: ${userId}`);
-    if (peers[userId]) {
-        peers[userId].close();
-        delete peers[userId];
-        const videoElement = document.getElementById(`video-${userId}`);
-        if (videoElement) {
-            videoElement.remove();
-        }
-    }
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', {
+        to: from,
+        answer: peerConnection.localDescription
+    });
 });
 
-// Call user function
-function callUser(userId) {
-    const peerConnection = createPeerConnection(userId);
-    peerConnection.createOffer().then(offer => {
-        peerConnection.setLocalDescription(offer);
-        socket.emit('outgoing:call', { fromOffer: offer, to: userId });
-    });
-}
+// Handle answer from participant (for host)
+socket.on('answer', ({ from, answer }) => {
+    console.log('Received answer from participant...');
+    peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
+});
 
 // Handle ICE candidates
-socket.on('ice-candidate', ({ candidate, to }) => {
-    const peerConnection = peers[to];
-    if (peerConnection) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    }
+socket.on('iceCandidate', ({ from, candidate }) => {
+    console.log('Received ICE candidate...');
+    peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
 });
 
-// Update user list on new connection
-socket.on('user:joined', userId => {
-    console.log(`User joined: ${userId}`);
+// Chat handling code remains the same
+const form = document.getElementById('chatForm');
+form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const message = document.getElementById('chatInput').value;
+    socket.emit('chatMessage', { message, username, isHost: role === 'host' });
+    document.getElementById('chatInput').value = '';
 });
 
-// Notify the server about disconnection
-window.addEventListener('beforeunload', () => {
-    socket.emit('disconnect', socket.id);
+socket.on('chatMessage', ({ message, username, isHost }) => {
+    const messages = document.getElementById('messages');
+    const newMessage = document.createElement('li');
+    newMessage.textContent = `${username}${isHost ? ' (Host)' : ''}: ${message}`;
+    messages.appendChild(newMessage);
 });
-
-// Toggle video and audio functions
-toggleVideoBtn.onclick = () => {
-    const videoTrack = localStream.getVideoTracks()[0];
-    videoTrack.enabled = !videoTrack.enabled;
-    toggleVideoBtn.textContent = videoTrack.enabled ? "Turn Off Video" : "Turn On Video";
-};
-
-toggleAudioBtn.onclick = () => {
-    const audioTrack = localStream.getAudioTracks()[0];
-    audioTrack.enabled = !audioTrack.enabled;
-    toggleAudioBtn.textContent = audioTrack.enabled ? "Mute Audio" : "Unmute Audio";
-};
 
