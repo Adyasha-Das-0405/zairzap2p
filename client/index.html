@@ -17,14 +17,19 @@
     <div id="meeting" style="display: none;">
         <h2>Meeting Room</h2>
         <div id="videoContainer">
+            <!-- Host video stream -->
             <video id="hostVideo" autoplay playsinline></video>
         </div>
 
+        <!-- Host Controls -->
         <div id="hostControls" style="display: none;">
             <button id="startStream">Start Stream</button>
             <button id="stopStream" disabled>Stop Stream</button>
+            <button id="muteAudio">Mute Audio</button>
+            <button id="muteVideo">Mute Video</button>
         </div>
 
+        <!-- Chat section common for both roles -->
         <div id="chat">
             <ul id="messages"></ul>
             <form id="chatForm">

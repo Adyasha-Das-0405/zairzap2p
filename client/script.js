@@ -126,3 +126,124 @@ socket.on('chatMessage', ({ message, username, isHost }) => {
     messages.appendChild(newMessage);
 });
 
+// Variables to manage stream state
+let isStreaming = false;
+
+document.getElementById('startStream').addEventListener('click', () => {
+    if (!isStreaming) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            console.log('Starting the stream...');
+            localStream = stream;
+            document.getElementById('hostVideo').srcObject = stream;
+
+            stream.getTracks().forEach(track => {
+                Object.values(peerConnections).forEach(peerConnection => {
+                    peerConnection.addTrack(track, stream);
+                });
+            });
+
+            isStreaming = true;
+            document.getElementById('startStream').disabled = true;
+            document.getElementById('stopStream').disabled = false;
+            console.log('Stream started, buttons toggled: Start disabled, Stop enabled');
+        }).catch(err => {
+            console.error("Error accessing media devices.", err);
+        });
+    } else {
+        console.log('Stream already active.');
+    }
+});
+
+// Function to stop the host stream
+document.getElementById('stopStream').addEventListener('click', () => {
+    if (isStreaming && localStream) {
+        console.log('Stopping the stream...');
+        localStream.getTracks().forEach(track => track.stop());
+        document.getElementById('hostVideo').srcObject = null;
+
+        // Notify participants to stop receiving the stream
+        Object.values(peerConnections).forEach(peerConnection => {
+            peerConnection.getSenders().forEach(sender => peerConnection.removeTrack(sender));
+        });
+
+        isStreaming = false;
+        document.getElementById('startStream').disabled = false;
+        document.getElementById('stopStream').disabled = true;
+    }
+});
+
+// Function to restart the host stream
+document.getElementById('startStream').addEventListener('click', () => {
+    if (!isStreaming) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            console.log('Starting the stream...');
+            localStream = stream;
+            document.getElementById('hostVideo').srcObject = stream;
+
+            stream.getTracks().forEach(track => {
+                Object.values(peerConnections).forEach(peerConnection => {
+                    peerConnection.addTrack(track, stream); // Add tracks again after restart
+                });
+            });
+
+            isStreaming = true;
+            document.getElementById('startStream').disabled = true;
+            document.getElementById('stopStream').disabled = false;
+        }).catch(err => {
+            console.error("Error accessing media devices.", err);
+        });
+    }
+});
+
+// Mute/Unmute video
+document.getElementById('muteVideo').addEventListener('click', () => {
+    if (localStream) {
+        const videoTracks = localStream.getVideoTracks();
+        videoTracks.forEach(track => {
+            track.enabled = !track.enabled; // Toggle local video track
+        });
+
+        // Notify participants to stop receiving video track if muted
+        if (!videoTracks[0].enabled) {
+            Object.values(peerConnections).forEach(peerConnection => {
+                const videoSender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+                peerConnection.removeTrack(videoSender); // Remove video track
+            });
+        } else {
+            localStream.getVideoTracks().forEach(track => {
+                Object.values(peerConnections).forEach(peerConnection => {
+                    peerConnection.addTrack(track, localStream); // Add video track back
+                });
+            });
+        }
+
+        document.getElementById('muteVideo').innerText = videoTracks[0].enabled ? 'Mute Video' : 'Unmute Video';
+    }
+});
+
+// Mute/Unmute audio
+document.getElementById('muteAudio').addEventListener('click', () => {
+    if (localStream) {
+        const audioTracks = localStream.getAudioTracks();
+        audioTracks.forEach(track => {
+            track.enabled = !track.enabled; // Toggle local audio track
+        });
+
+        // Notify participants to stop receiving audio track if muted
+        if (!audioTracks[0].enabled) {
+            Object.values(peerConnections).forEach(peerConnection => {
+                const audioSender = peerConnection.getSenders().find(s => s.track.kind === 'audio');
+                peerConnection.removeTrack(audioSender); // Remove audio track
+            });
+        } else {
+            localStream.getAudioTracks().forEach(track => {
+                Object.values(peerConnections).forEach(peerConnection => {
+                    peerConnection.addTrack(track, localStream); // Add audio track back
+                });
+            });
+        }
+
+        document.getElementById('muteAudio').innerText = audioTracks[0].enabled ? 'Mute Audio' : 'Unmute Audio';
+    }
+});
+
