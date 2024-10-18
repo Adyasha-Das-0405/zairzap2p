@@ -1,6 +1,7 @@
 const socket = io();
 let localStream;
 let peerConnections = {};
+
 const config = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
@@ -246,4 +247,48 @@ document.getElementById('muteAudio').addEventListener('click', () => {
         document.getElementById('muteAudio').innerText = audioTracks[0].enabled ? 'Mute Audio' : 'Unmute Audio';
     }
 });
+
+const participants = new Map(); // Use a Map to store participant ID and name
+const participantsList = document.getElementById('participantsList');
+
+// Handle new participant joining
+socket.on('newParticipant', ({ id, username }) => {
+    participants.set(id, username); // Store the participant's name
+    updateParticipantsList();
+});
+
+// Handle host disconnection
+socket.on('hostDisconnected', () => {
+    participants.delete(hostId);
+    updateParticipantsList();
+});
+
+// Handle participant disconnection
+socket.on('disconnect', () => {
+    participants.delete(socket.id);
+    updateParticipantsList();
+});
+
+// Function to update the participants list
+socket.on('updateParticipants', ({ participants }) => {
+    participantsList.innerHTML = ''; // Clear the current list
+    Object.entries(participants).forEach(([id, username]) => {
+        const listItem = document.createElement('li');
+        listItem.textContent = username; // Show the participant's name
+        participantsList.appendChild(listItem);
+    });
+});
+
+
+// Show/Hide participants list on button click
+document.getElementById('participantsButton').addEventListener('click', () => {
+    const isVisible = participantsList.style.display === 'block';
+    participantsList.style.display = isVisible ? 'none' : 'block';
+});
+
+// Add the host to the participants list
+if (hostId) {
+    participants.set(hostId, username); // Store the host's name
+    updateParticipantsList();
+}
 
